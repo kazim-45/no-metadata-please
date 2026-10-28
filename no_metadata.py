@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Metadata Scrubber - strip sensitive metadata from photos, images and media.
+NO-METADATA - strip sensitive metadata from photos, images and media.
 
 Removes things like GPS location, camera/phone model, serial numbers, author
 names, timestamps, software tags, embedded thumbnails, comments and more.
 Your original files are never modified: a cleaned copy "<name>_clean.<ext>"
 is written next to the original (or to a folder you choose).
 
+Drag and drop files or folders onto the window to add them.
+
 Requirements:
-    pip install pillow
+    pip install -r requirements.txt     (pillow, tkinterdnd2)
     ffmpeg on your PATH (optional, only needed for video/audio files)
 
 Run:
-    python metadata_scrubber.py
+    python3 no_metadata.py
 """
 
 import os
@@ -29,17 +31,52 @@ try:
 except ImportError:  # pragma: no cover
     Image = None
 
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    HAS_DND = True
+except Exception:  # pragma: no cover - drag & drop is optional
+    DND_FILES = None
+    TkinterDnD = None
+    HAS_DND = False
+
+APP_NAME = "NO-METADATA"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tif", ".tiff", ".bmp"}
 MEDIA_EXTS = {
     ".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi",
     ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus",
 }
-ALL_EXTS = sorted(IMAGE_EXTS | MEDIA_EXTS)
+SUPPORTED_EXTS = IMAGE_EXTS | MEDIA_EXTS
+ALL_EXTS = sorted(SUPPORTED_EXTS)
 
 
 # --------------------------------------------------------------------------
 # Core cleaning logic (no GUI code below this line until the GUI section)
 # --------------------------------------------------------------------------
+
+def is_supported(path):
+    return os.path.splitext(path)[1].lower() in SUPPORTED_EXTS
+
+
+def expand_paths(paths):
+    """Turn a mix of files and folders into a flat list of supported files.
+
+    Returns (supported_files, skipped_names).
+    """
+    files, skipped = [], []
+    for p in paths:
+        if os.path.isdir(p):
+            for root, _dirs, names in os.walk(p):
+                for name in sorted(names):
+                    full = os.path.join(root, name)
+                    if is_supported(full):
+                        files.append(full)
+        elif os.path.isfile(p):
+            if is_supported(p):
+                files.append(p)
+            else:
+                skipped.append(os.path.basename(p))
+    return files, skipped
+
 
 def unique_output_path(src, out_dir):
     stem, ext = os.path.splitext(os.path.basename(src))
@@ -175,25 +212,36 @@ def clean_file(src, out_dir, keep_icc):
 # GUI
 # --------------------------------------------------------------------------
 
-class App(tk.Tk):
+_BaseTk = TkinterDnD.Tk if HAS_DND else tk.Tk
+
+
+class App(_BaseTk):
     def __init__(self):
         super().__init__()
-        self.title("Metadata Scrubber")
-        self.geometry("720x560")
-        self.minsize(600, 460)
+        self.title(APP_NAME)
+        self.geometry("740x600")
+        self.minsize(620, 500)
         self.files = []
         self.msgs = queue.Queue()
         self.out_dir = tk.StringVar(value="")
         self.same_folder = tk.BooleanVar(value=True)
         self.keep_icc = tk.BooleanVar(value=True)
         self._build()
+        self._setup_dnd()
         self.after(100, self._poll)
 
     def _build(self):
         pad = {"padx": 10, "pady": 5}
 
-        ttk.Label(self, text="Strip location, device info and other hidden data from your files.",
-                  font=("TkDefaultFont", 11, "bold")).pack(anchor="w", **pad)
+        ttk.Label(self, text=APP_NAME, font=("TkDefaultFont", 16, "bold")).pack(
+            anchor="w", padx=10, pady=(10, 0))
+        ttk.Label(self, text="Strip location, device info and other hidden data from your files.").pack(
+            anchor="w", padx=10)
+
+        hint = ("Drag & drop files or folders here" if HAS_DND
+                else "Drag & drop unavailable (pip install tkinterdnd2) - use 'Add files…'")
+        self.hint = ttk.Label(self, text=hint, foreground="gray")
+        self.hint.pack(anchor="w", padx=10, pady=(8, 0))
 
         mid = ttk.Frame(self)
         mid.pack(fill="both", expand=True, **pad)
@@ -205,6 +253,7 @@ class App(tk.Tk):
         btns = ttk.Frame(mid)
         btns.pack(side="left", fill="y", padx=(10, 0))
         ttk.Button(btns, text="Add files…", command=self.add_files).pack(fill="x", pady=2)
+        ttk.Button(btns, text="Add folder…", command=self.add_folder).pack(fill="x", pady=2)
         ttk.Button(btns, text="Remove selected", command=self.remove_selected).pack(fill="x", pady=2)
         ttk.Button(btns, text="Clear", command=self.clear).pack(fill="x", pady=2)
 
@@ -234,6 +283,19 @@ class App(tk.Tk):
         if not shutil.which("ffmpeg"):
             self._log("Note: ffmpeg not found, so video/audio files can't be cleaned (images are fine).")
 
+    # -- drag and drop
+    def _setup_dnd(self):
+        if not HAS_DND:
+            return
+        for widget in (self, self.listbox, self.log):
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind("<<Drop>>", self._on_drop)
+
+    def _on_drop(self, event):
+        # event.data is a Tcl list; paths containing spaces are wrapped in {}
+        self.add_paths(self.tk.splitlist(event.data))
+        return event.action
+
     # -- helpers
     def _log(self, text):
         self.log.config(state="normal")
@@ -251,15 +313,33 @@ class App(tk.Tk):
         if d:
             self.out_dir.set(d)
 
+    def add_paths(self, paths):
+        files, skipped = expand_paths(paths)
+        added = 0
+        for p in files:
+            if p not in self.files:
+                self.files.append(p)
+                self.listbox.insert("end", p)
+                added += 1
+        if added:
+            self._log(f"Added {added} file(s).")
+        if skipped:
+            self._log("Skipped unsupported: " + ", ".join(skipped))
+        if not added and not skipped:
+            self._log("No new supported files found.")
+
     def add_files(self):
         exts = " ".join(f"*{e}" for e in ALL_EXTS)
         paths = filedialog.askopenfilenames(
             title="Select images or media",
             filetypes=[("Supported files", exts), ("All files", "*.*")])
-        for p in paths:
-            if p not in self.files:
-                self.files.append(p)
-                self.listbox.insert("end", p)
+        if paths:
+            self.add_paths(paths)
+
+    def add_folder(self):
+        d = filedialog.askdirectory(title="Select a folder of images or media")
+        if d:
+            self.add_paths([d])
 
     def remove_selected(self):
         for i in reversed(self.listbox.curselection()):
