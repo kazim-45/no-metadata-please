@@ -1,14 +1,15 @@
-# Metadata Scrubber
+# NO-METADATA
 
 A simple, offline desktop tool that removes sensitive metadata from your photos, images, video and audio before you share them.
 
 > Privacy and security are a right.
 
-Photos and media files quietly carry hidden data: GPS coordinates, phone or camera model, serial numbers, timestamps, editing software, author names, comments and embedded thumbnails. Metadata Scrubber strips it out in a few clicks.
+Photos and media files quietly carry hidden data: GPS coordinates, phone or camera model, serial numbers, timestamps, editing software, author names, comments and embedded thumbnails. NO-METADATA strips it out in a few clicks.
 
 ## Features
 
-- Simple GUI: add files, click **Remove metadata**
+- Simple GUI: drag and drop your files, click **Remove metadata**
+- **Drag and drop** files or whole folders straight onto the window
 - Batch processing with a progress bar and a per-file report of what was found (for example "GPS LOCATION")
 - **Never touches your originals**: writes a cleaned copy named `<name>_clean.<ext>`
 - Works fully offline: no network access, no telemetry, no accounts
@@ -27,12 +28,14 @@ Photos and media files quietly carry hidden data: GPS coordinates, phone or came
 Requires Python 3.8+.
 
 ```bash
-git clone https://github.com/<your-username>/metadata-scrubber.git
-cd metadata-scrubber
+git clone https://github.com/<your-username>/no-metadata-please.git
+cd no-metadata-please
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Tkinter ships with most Python installs. On some Linux distributions you need to install it separately:
+Tkinter ships with most Python installs. On some Linux distributions you need to install it separately (it is not available through pip):
 
 ```bash
 sudo apt install python3-tk      # Debian / Ubuntu
@@ -50,13 +53,15 @@ winget install ffmpeg            # Windows
 ## Usage
 
 ```bash
-python metadata_scrubber.py
+python3 no_metadata.py
 ```
 
-1. Click **Add files…** and pick one or more images or media files.
+1. Drag files or folders onto the window, or use **Add files…** / **Add folder…**.
 2. Optionally choose a different output folder.
 3. Click **Remove metadata**.
 4. Find your cleaned copies as `<name>_clean.<ext>`.
+
+Drag and drop is provided by [`tkinterdnd2`](https://pypi.org/project/tkinterdnd2/), which is included in `requirements.txt`. If it isn't installed, the app still works and you can use the buttons instead.
 
 ## How it works
 
@@ -81,7 +86,7 @@ exiftool photo_clean.jpg
 
 ## Contributing
 
-Issues and pull requests are welcome. Ideas: drag-and-drop support, HEIC support, PDF and Office document cleaning, a command-line mode.
+Issues and pull requests are welcome. Ideas: HEIC support, PDF and Office document cleaning, a command-line mode.
 
 ## License
 
