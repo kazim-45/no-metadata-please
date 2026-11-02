@@ -35,3 +35,6 @@ Thumbs.db
 *_clean_[0-9]*.*
 test_media/
 samples/
+
+# Installer output (generated launcher)
+/no-metadata
