@@ -28,7 +28,7 @@ Photos and media files quietly carry hidden data: GPS coordinates, phone or came
 Requires Python 3.8+.
 
 ```bash
-git clone https://github.com/<your-username>/no-metadata-please.git
+git clone https://github.com/kazim-45/no-metadata-please.git
 cd no-metadata-please
 python3 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
